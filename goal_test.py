@@ -4,18 +4,23 @@ import os, sys, time, logging, signal
 import RPi.GPIO as GPIO
 from foosball_utils import DigitalFoosballSimulator as DFSim
 
+# Define modes
+mode_SENSOR_PER_GOAL=0 # Default configuration
+mode_TOGGLE_SENSOR=1 # Alternate configuration
+
 # DigitalFoosball server info
 SERVER_IP='127.0.0.1' # TODO
 SERVER_PORT='80'
 
 # GPIO info - use BCM 23 and 24 (RPi2 board pins 16 and 18) for input
 PIN_NUMBERING=GPIO.BCM
-HOME_PIN=23
-VISITOR_PIN=24
-PIN_BOUNCETIME=2000 #TODO - increase to 2000 (or so) to avoid double trigger? (orig 300)
+SENSOR1_PIN=23 # VISITOR GOAL SENSOR
+SENSOR2_PIN=24 # HOME GOAL SENSOR
+PIN_BOUNCETIME=500 #TODO - increase to avoid double trigger? (orig 300)
+SENSOR_MODE=mode_TOGGLE_SENSOR #TODO - set this depending on sensor configuration
 
 class GoalReader(object):
-    def __init__(self, server_ip='127.0.0.1', server_port='80'):
+    def __init__(self, server_ip='127.0.0.1', server_port='80', sensor_mode=mode_SENSOR_PER_GOAL):
         self.log = logging.getLogger('GoalReader')
         self.log.setLevel(logging.DEBUG)
         fh = logging.FileHandler('/var/log/goalreader.log')
@@ -24,23 +29,53 @@ class GoalReader(object):
         self.log.addHandler(fh)
         self.log.info('Creating DigitalFoosballSimulator w/ ip=%s  port=%s'%(server_ip,server_port))
         self.sim=DFSim(ip=server_ip, port=server_port)
-        self.setupGPIO()
+        self.setupGPIO(mode=sensor_mode)
 
-    def homeTeamScored(self, channel):
-        self.log.info('Sending goal for Home Team')
-        self.sim.sendHomeGoal()
+        # flag used in mode 1 (TOGGLE_SENSOR), set when goal sensor 2 is triggered
+        self.__homeGoal=False
 
-    def visitorTeamScored(self, channel):
-        self.log.info('Sending goal for Visitor Team')
+    # Functions for mode0 (mode_SENSOR_PER_GOAL)
+    def sensor1_mode0(self, channel):
+        self.log.info('Sensor 1 triggered (BCM PIN %s)'%(SENSOR1_PIN))
+        self.log.debug('Sensor 1 triggered: send visitor goal')
         self.sim.sendVisitorGoal()
 
-    def setupGPIO(self):
-        self.log.info('Configuring GPIO for goal sensors - Home=%s  Visitor=%s  bouncetime=%s'%(HOME_PIN,VISITOR_PIN,PIN_BOUNCETIME))
+    def sensor2_mode0(self, channel):
+        self.log.info('Sensor 2 triggered (BCM PIN %s)'%(SENSOR2_PIN))
+        self.log.debug('Sensor 2 triggered: send home goal')
+        self.sim.sendHomeGoal()
+
+    # Functions for mode1 (mode_TOGGLE_SENSOR)
+    def sensor1_mode1(self, channel):
+        self.log.info('Sensor 1 triggered (BCM PIN %s)'%(SENSOR1_PIN))
+        if self.__homeGoal:
+            self.log.debug('Sensor 1 triggered: homeGoal flag set, sending home goal')
+            self.sim.sendHomeGoal()
+            self.log.debug('Sensor 1 triggered: processed goal, resetting homeGoal flag')
+            self.__homeGoal=False
+        else:
+            self.log.debug('Sensor 1 triggered: homeGoal flag unset, sending visitor goal')
+            self.sim.sendVisitorGoal()
+
+    def sensor2_mode1(self, channel):
+        self.log.info('Sensor 2 triggered (BCM PIN %s)'%(SENSOR2_PIN))
+        self.log.debug('Sensor 2 triggered: set homeGoal flag')
+        self.__homeGoal=True
+
+    # GPIO configuration functions
+    def setupGPIO(self, mode):
+        self.log.info('Configuring GPIO for goal sensors - Sensor1=%s  Sensor2=%s  bouncetime=%s'%(SENSOR1_PIN,SENSOR2_PIN,PIN_BOUNCETIME))
         GPIO.setmode(PIN_NUMBERING)
-        GPIO.setup(HOME_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-        GPIO.setup(VISITOR_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-        GPIO.add_event_detect(HOME_PIN, GPIO.RISING, callback=self.homeTeamScored, bouncetime=PIN_BOUNCETIME)
-        GPIO.add_event_detect(VISITOR_PIN, GPIO.RISING, callback=self.visitorTeamScored, bouncetime=PIN_BOUNCETIME)
+        GPIO.setup(SENSOR1_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        GPIO.setup(SENSOR2_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        if mode == mode_TOGGLE_SENSOR:
+            self.log.debug('setupGPIO: TOGGLE_SENSOR mode')
+            GPIO.add_event_detect(SENSOR1_PIN, GPIO.RISING, callback=self.sensor1_mode1, bouncetime=PIN_BOUNCETIME)
+            GPIO.add_event_detect(SENSOR2_PIN, GPIO.RISING, callback=self.sensor2_mode1, bouncetime=PIN_BOUNCETIME)
+        else: #elif mode == mode_SENSOR_PER_GOAL:
+            self.log.debug('setupGPIO: SENSOR_PER_GOAL mode')
+            GPIO.add_event_detect(SENSOR1_PIN, GPIO.RISING, callback=self.sensor1_mode0, bouncetime=PIN_BOUNCETIME)
+            GPIO.add_event_detect(SENSOR2_PIN, GPIO.RISING, callback=self.sensor2_mode0, bouncetime=PIN_BOUNCETIME)
 
     def cleanup(self):
         self.log.info('Cleaning up GPIO configuration')
@@ -52,7 +87,7 @@ if __name__=='__main__':
     signal.signal(signal.SIGINT, handleSignal)
     signal.signal(signal.SIGTERM, handleSignal)
 
-    reader=GoalReader(SERVER_IP, SERVER_PORT)
+    reader=GoalReader(SERVER_IP, SERVER_PORT, SENSOR_MODE)
     signal.pause() # wait for signal
     reader.cleanup()
 
