@@ -1,7 +1,7 @@
 #!/bin/bash
-SCRIPT_NAME=/home/pi/gpio/goal_reader.py
+SCRIPT_NAME=/data/repos/rpi-goal-reader/goal_reader.py
 PID_FILE=/var/run/goal_reader.pid
-export PYTHON_PATH=${PYTHON_PATH}:/home/pi/gpio/
+#PYTHON_PATH=${PYTHON_PATH}:/data/repos/rpi-goal-reader/
 
 case "$1" in
     start)
