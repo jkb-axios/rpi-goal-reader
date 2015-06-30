@@ -39,24 +39,32 @@ class GoalReader(object):
     def spg_sensor1(self, channel=None):
         self.log.info('Sensor 1 triggered (BCM PIN %s)'%(SENSOR1_PIN))
         self.log.debug('Sensor 1 triggered: send visitor goal')
-        self.sim.sendVisitorGoal()
+        status, reason = self.sim.sendVisitorGoal()
+        self.log.debug('STATUS: '+status)
+        self.log.debug('REASON: '+reason)
 
     def spg_sensor2(self, channel=None):
         self.log.info('Sensor 2 triggered (BCM PIN %s)'%(SENSOR2_PIN))
         self.log.debug('Sensor 2 triggered: send home goal')
-        self.sim.sendHomeGoal()
+        status, reason = self.sim.sendHomeGoal()
+        self.log.debug('STATUS: '+status)
+        self.log.debug('REASON: '+reason)
 
     # Functions for mode_TOGGLE_SENSOR
     def ts_sensor1(self, channel=None):
         self.log.info('Sensor 1 triggered (BCM PIN %s)'%(SENSOR1_PIN))
         if self.__homeGoal:
             self.log.debug('Sensor 1 triggered: homeGoal flag set, sending home goal')
-            self.sim.sendHomeGoal()
+            status, reason = self.sim.sendHomeGoal()
+            self.log.debug('STATUS: '+status)
+            self.log.debug('REASON: '+reason)
             self.log.debug('Sensor 1 triggered: processed goal, resetting homeGoal flag')
             self.__homeGoal=False
         else:
             self.log.debug('Sensor 1 triggered: homeGoal flag unset, sending visitor goal')
-            self.sim.sendVisitorGoal()
+            status, reason = self.sim.sendVisitorGoal()
+            self.log.debug('STATUS: '+status)
+            self.log.debug('REASON: '+reason)
 
     def ts_sensor2(self, channel=None):
         self.log.info('Sensor 2 triggered (BCM PIN %s)'%(SENSOR2_PIN))

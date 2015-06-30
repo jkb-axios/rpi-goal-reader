@@ -16,6 +16,7 @@ class DigitalFoosballSimulator(object):
         headers = {"Content-Type": "application/x-www-form-urlencoded",
                    "User-Agenet": "Arduino/DigitalKicker"
                   }
+        context = ""
         try:
             conn = httplib.HTTPConnection(self.ip, self.port)
             conn.set_debuglevel(1)
@@ -28,22 +29,24 @@ class DigitalFoosballSimulator(object):
 
             conn.request("POST", context, params, headers)
             response = conn.getresponse()
+            print response.status, response.reason
             return response.status, response.reason
         except Exception, e:
-            print 'ERROR - exception when sending request\n  params:%s\n  headers:%s'%(params,headers)
-            return 'ERROR', 'exception when sending request, see logs'
+            txt = 'exception when sending request\n  params:%s\n  headers:%s\n  context:%s\n'%(params,headers,context)
+            print 'ERROR:',txt
+            return 'ERROR', txt
 
     def sendVisitorGoal(self):
-        print self._sendRequest("visitors")
+        return self._sendRequest("visitors")
 
     def sendHomeGoal(self):
-        print self._sendRequest("home")
+        return self._sendRequest("home")
 
     def addRFIDVistor(self, id):
-        print self._sendRequest("visitors", id)
+        return self._sendRequest("visitors", id)
 
     def addRFIDHome(self, id):
-        print self._sendRequest("home", id)
+        return self._sendRequest("home", id)
 
 if __name__ == "__main__":
 
